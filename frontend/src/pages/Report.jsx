@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from "react";
-import { Link, useParams } from "react-router-dom";
+import { Link, useLocation, useParams } from "react-router-dom";
 import { AppShell, PageHeader } from "@/components/layout/AppShell";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -78,8 +78,10 @@ function TopicRow({ item }) {
 
 export function Report() {
   const { id } = useParams();
-  const [report, setReport] = useState(null);
-  const [reportLoading, setReportLoading] = useState(true);
+  const location = useLocation();
+  const initialReport = location.state?.report || null;
+  const [report, setReport] = useState(initialReport);
+  const [reportLoading, setReportLoading] = useState(!initialReport);
   const [reportError, setReportError] = useState("");
   const [expandedTurns, setExpandedTurns] = useState({});
 
@@ -87,7 +89,7 @@ export function Report() {
     let isMounted = true;
     async function load() {
       try {
-        setReportLoading(true);
+        if (!initialReport) setReportLoading(true);
         const data = await fetchReport(id);
         if (isMounted) {
           setReport(data);
@@ -95,14 +97,16 @@ export function Report() {
         }
       } catch (err) {
         if (isMounted) {
-          setReportError("Session report could not be retrieved.");
+          if (!initialReport) {
+            setReportError("Session report could not be retrieved.");
+          }
           setReportLoading(false);
         }
       }
     }
     load();
     return () => { isMounted = false; };
-  }, [id]);
+  }, [id]); // eslint-disable-line
 
   const toggleTurn = (idx) => {
     setExpandedTurns((prev) => ({ ...prev, [idx]: !prev[idx] }));
@@ -150,9 +154,10 @@ export function Report() {
   }
 
   const role = report.role || "Software Engineer";
-  const difficulty = report.difficulty || "medium";
+  const difficulty = report.difficulty || report.interview_type || "technical";
+  const avg10 = report.average_score ?? 0;
   const overallScore = Math.round(
-    report.overall_score ?? (report.average_score ? report.average_score * 10 : 75)
+    report.overall_score ?? (avg10 * 10)
   );
 
   const rawScores = report.scores || {};
@@ -160,69 +165,85 @@ export function Report() {
   const scoreCards = [
     {
       k: "Technical",
-      v: rawScores.technical ?? rawScores.technical_knowledge ?? (matrix.correctness ? matrix.correctness * 10 : Math.round(overallScore * 0.95)),
+      v: rawScores.technical ?? rawScores.technical_knowledge ?? (matrix.correctness != null ? matrix.correctness * 10 : overallScore),
     },
     {
       k: "Communication",
-      v: rawScores.communication ?? rawScores.communication_skills ?? (matrix.communication ? matrix.communication * 10 : Math.min(100, Math.round(overallScore * 1.05))),
+      v: rawScores.communication ?? rawScores.communication_skills ?? (matrix.communication != null ? matrix.communication * 10 : overallScore),
     },
     {
       k: "Problem Solving",
-      v: rawScores.problem_solving ?? rawScores.problem_solving_ability ?? (matrix.reasoning ? matrix.reasoning * 10 : overallScore),
+      v: rawScores.problem_solving ?? rawScores.problem_solving_ability ?? (matrix.reasoning != null ? matrix.reasoning * 10 : overallScore),
     },
     { k: "Overall", v: overallScore },
-  ].map((s) => ({ ...s, v: Math.round(s.v) }));
+  ].map((s) => ({ ...s, v: Math.min(100, Math.max(0, Math.round(s.v))) }));
 
-  // Radar data
+  // Radar data built dynamically from topic evaluations, topic scores, or performance matrix
   let radarData = [];
   if (Array.isArray(report.topic_evaluations) && report.topic_evaluations.length > 0) {
     radarData = report.topic_evaluations.map((t) => ({
       axis: t.topic,
-      s: Math.min(Math.round((t.score ?? 5) * 10), 100),
-      score: t.score,
+      s: Math.min(Math.round((t.score ?? 0) * 10), 100),
+      score: t.score ?? 0,
       summary: t.summary,
       topic: t.topic,
     }));
   } else if (report.topic_scores && Object.keys(report.topic_scores).length > 0) {
     radarData = Object.entries(report.topic_scores).map(([k, v]) => ({
       axis: k.replace(/_/g, " "),
-      s: Math.min(Math.round((v ?? 5) * 10), 100),
-      score: v,
+      s: Math.min(Math.round((v ?? 0) * 10), 100),
+      score: v ?? 0,
       topic: k.replace(/_/g, " "),
     }));
-  } else {
-    radarData = [
-      { axis: "Technical Depth", s: Math.round(overallScore * 0.95), score: 8 },
-      { axis: "Systems Design", s: Math.round(overallScore * 0.9), score: 7 },
-      { axis: "Tradeoff Analysis", s: overallScore, score: 7.5 },
-      { axis: "Communication", s: Math.min(100, Math.round(overallScore * 1.05)), score: 8.5 },
-      { axis: "Pragmatism", s: Math.round(overallScore * 0.98), score: 8 },
+  } else if (matrix && Object.values(matrix).some((v) => Number(v) > 0)) {
+    const matrixAxes = [
+      ["correctness", "Correctness"],
+      ["depth", "Depth"],
+      ["communication", "Communication"],
+      ["reasoning", "Reasoning"],
+      ["clarity", "Clarity"],
+      ["role_fit", "Role Fit"],
     ];
+    radarData = matrixAxes
+      .filter(([key]) => matrix[key] != null)
+      .map(([key, label]) => ({
+        axis: label,
+        s: Math.min(Math.round((matrix[key] ?? 0) * 10), 100),
+        score: matrix[key] ?? 0,
+        topic: label,
+      }));
   }
 
-  const strengths = report.strengths || [
-    "Solid understanding of core software fundamentals and architecture.",
-    "Proactively highlighted performance bottlenecks and indexing tradeoffs.",
-    "Concise and professional verbal articulation."
-  ];
+  const strengths = Array.isArray(report.strengths) ? report.strengths : [];
 
-  const improvements = report.improvements || report.weaknesses || report.areas_for_improvement || [
-    "Clarify scale metrics and requests-per-second constraints earlier before proposing solutions.",
-    "Elaborate further on distributed failover and data replication boundaries."
-  ];
+  const improvements =
+    report.improvements ??
+    report.weaknesses ??
+    report.areas_for_improvement ??
+    report.concerns ??
+    [];
 
-  let topicEvals = report.topic_evaluations || [];
-  if (topicEvals.length === 0 && report.topic_scores) {
+  let topicEvals = Array.isArray(report.topic_evaluations) ? report.topic_evaluations : [];
+  if (topicEvals.length === 0 && report.topic_scores && Object.keys(report.topic_scores).length > 0) {
     topicEvals = Object.entries(report.topic_scores).map(([k, v]) => ({
       topic: k.replace(/_/g, " "),
       score: v,
     }));
   }
-  if (topicEvals.length === 0) {
+  if (topicEvals.length === 0 && radarData.length > 0) {
     topicEvals = radarData;
   }
 
   const turns = report.evaluated_turns || report.turns || [];
+  const recommendationText =
+    report.recommendation ||
+    (turns.length === 0
+      ? "This interview ended before any scored responses were submitted. Start a new session and answer at least one question for a full evaluation."
+      : overallScore >= 80
+      ? "Excellent performance! You demonstrated strong technical expertise and clear communication."
+      : overallScore >= 65
+      ? "Good performance. With targeted practice on tradeoffs and edge-cases, you can reach top tier."
+      : "Keep practicing — review the improvement areas below to level up your engineering skills.");
 
   return (
     <AppShell>
@@ -269,15 +290,17 @@ export function Report() {
               <h2 className="text-lg font-bold text-white">Overall Performance</h2>
             </div>
             <p className="text-sm text-[#A1A1A1] leading-relaxed">
-              {overallScore >= 80
-                ? "Excellent performance! You demonstrated strong technical expertise and clear communication."
-                : overallScore >= 65
-                ? "Good performance. With targeted practice on tradeoffs and edge-cases, you can reach top tier."
-                : "Keep practicing — review the improvement areas below to level up your engineering skills."}
+              {recommendationText}
             </p>
             <div className="mt-3 flex flex-wrap gap-2 justify-center sm:justify-start">
               <Badge className="bg-[#FF6500]/10 text-[#FF6500] border-[#FF6500]/20 font-semibold">{role}</Badge>
               <Badge variant="outline" className="border-[#262626] text-zinc-400 capitalize">{difficulty}</Badge>
+              <Badge variant="outline" className="border-[#262626] text-zinc-400">
+                {report.questions_answered ?? turns.length} {((report.questions_answered ?? turns.length) === 1) ? "question" : "questions"} evaluated
+              </Badge>
+              {report.status && (
+                <Badge variant="outline" className="border-[#262626] text-zinc-400 capitalize">{report.status}</Badge>
+              )}
             </div>
           </div>
         </Card>
@@ -347,28 +370,36 @@ export function Report() {
             <h3 className="text-sm font-semibold text-emerald-400 mb-3 flex items-center gap-1.5">
               <Check className="h-4 w-4" /> Demonstrated Strengths
             </h3>
-            <ul className="space-y-2">
-              {strengths.map((x, i) => (
-                <li key={i} className="flex items-start gap-2 text-xs text-zinc-300 leading-relaxed">
-                  <Check className="mt-0.5 h-3.5 w-3.5 text-emerald-400 shrink-0" />
-                  <span>{typeof x === "string" ? x : x.text || JSON.stringify(x)}</span>
-                </li>
-              ))}
-            </ul>
+            {strengths.length > 0 ? (
+              <ul className="space-y-2">
+                {strengths.map((x, i) => (
+                  <li key={i} className="flex items-start gap-2 text-xs text-zinc-300 leading-relaxed">
+                    <Check className="mt-0.5 h-3.5 w-3.5 text-emerald-400 shrink-0" />
+                    <span>{typeof x === "string" ? x : x.text || JSON.stringify(x)}</span>
+                  </li>
+                ))}
+              </ul>
+            ) : (
+              <p className="text-xs text-zinc-500">No specific strengths recorded yet for this session.</p>
+            )}
           </Card>
 
           <Card className="border-[#262626] bg-[#0A0A0A] p-5">
             <h3 className="text-sm font-semibold text-rose-400 mb-3 flex items-center gap-1.5">
               <X className="h-4 w-4" /> Areas to Improve
             </h3>
-            <ul className="space-y-2">
-              {improvements.map((x, i) => (
-                <li key={i} className="flex items-start gap-2 text-xs text-zinc-300 leading-relaxed">
-                  <X className="mt-0.5 h-3.5 w-3.5 text-rose-400 shrink-0" />
-                  <span>{typeof x === "string" ? x : x.text || JSON.stringify(x)}</span>
-                </li>
-              ))}
-            </ul>
+            {improvements.length > 0 ? (
+              <ul className="space-y-2">
+                {improvements.map((x, i) => (
+                  <li key={i} className="flex items-start gap-2 text-xs text-zinc-300 leading-relaxed">
+                    <X className="mt-0.5 h-3.5 w-3.5 text-rose-400 shrink-0" />
+                    <span>{typeof x === "string" ? x : x.text || JSON.stringify(x)}</span>
+                  </li>
+                ))}
+              </ul>
+            ) : (
+              <p className="text-xs text-zinc-500">No specific areas to improve were flagged in this session.</p>
+            )}
           </Card>
         </div>
 

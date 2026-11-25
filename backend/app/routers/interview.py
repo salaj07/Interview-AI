@@ -372,19 +372,19 @@ async def speech_to_text(file: UploadFile = File(...)):
                 if resp.status_code == 200:
                     payload = resp.json()
                     transcript = (payload.get("transcript") or "").strip()
-                    if transcript:
-                        return {
-                            "transcript": transcript,
-                            "provider": "sarvam_ai",
-                            "model": "saaras:v4",
-                            "language_code": payload.get("language_code", "en-IN"),
-                        }
+                    return {
+                        "transcript": transcript,
+                        "provider": "sarvam_ai",
+                        "model": "saaras:v4",
+                        "language_code": payload.get("language_code", "en-IN"),
+                        "no_speech": not bool(transcript),
+                    }
                 else:
                     logger.warning("Sarvam AI STT returned status %s: %s", resp.status_code, resp.text)
         except Exception as e:
             logger.warning("Sarvam AI STT request exception: %s, falling back to Groq Whisper", e)
 
-    # 2. Resilient Fallback: Groq Whisper Large v3
+    # 2. Resilient Fallback: Groq Whisper Large v3 (only when Sarvam is unconfigured or errored)
     groq_key = (GROQ_API_KEY or "").strip()
     if groq_key:
         try:
@@ -393,16 +393,27 @@ async def speech_to_text(file: UploadFile = File(...)):
             transcription = groq_client.audio.transcriptions.create(
                 file=(filename, audio_bytes),
                 model="whisper-large-v3",
-                response_format="json",
+                language="en",
+                response_format="verbose_json",
                 temperature=0.0,
             )
-            text = (transcription.text or "").strip()
-            if text:
-                return {
-                    "transcript": text,
-                    "provider": "groq_whisper",
-                    "model": "whisper-large-v3",
-                }
+            segments = getattr(transcription, "segments", None) or []
+            if segments:
+                valid_parts = [
+                    (seg.get("text", "") if isinstance(seg, dict) else getattr(seg, "text", "")).strip()
+                    for seg in segments
+                    if (seg.get("no_speech_prob", 0.0) if isinstance(seg, dict) else getattr(seg, "no_speech_prob", 0.0)) < 0.6
+                ]
+                text = " ".join(p for p in valid_parts if p).strip()
+            else:
+                text = (getattr(transcription, "text", "") or "").strip()
+
+            return {
+                "transcript": text,
+                "provider": "groq_whisper",
+                "model": "whisper-large-v3",
+                "no_speech": not bool(text),
+            }
         except Exception as e:
             logger.error("Groq Whisper transcription failed: %s", e)
 

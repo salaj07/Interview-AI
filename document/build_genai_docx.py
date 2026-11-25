@@ -775,6 +775,13 @@ def build_report():
         bold_prefix="5.3 Future Directions: "
     )
 
+    add_body_p(
+        doc,
+        "The complete source code, setup instructions, and documentation for this project are available at: "
+        "https://github.com/salaj07/Interview-AI",
+        bold_prefix="5.4 Source Code Repository: "
+    )
+
     # References (All Black)
     add_heading_2(doc, "References:")
     refs = [

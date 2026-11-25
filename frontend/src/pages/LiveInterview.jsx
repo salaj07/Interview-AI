@@ -182,6 +182,7 @@ export function LiveInterview() {
   const [textInput, setTextInput] = useState("");
   const [interimText, setInterimText] = useState("");
   const textInputRef = useRef("");
+  const interimTextRef = useRef("");
 
   // Mode & Audio Controls
   const [isTextMode, setIsTextMode] = useState(false);
@@ -210,6 +211,9 @@ export function LiveInterview() {
   const audioChunksRef = useRef([]);
   const [isTranscribing, setIsTranscribing] = useState(false);
   const hasVocalizedRef = useRef(false);
+  const lastVoiceTimeRef = useRef(0);
+  const vocalFrameCountRef = useRef(0);
+  const isEndingRef = useRef(false);
 
   // Speech Recognition & TTS Handles
   const recognitionRef = useRef(null);
@@ -225,6 +229,10 @@ export function LiveInterview() {
   }, [textInput]);
 
   useEffect(() => {
+    interimTextRef.current = interimText;
+  }, [interimText]);
+
+  useEffect(() => {
     isMutedRef.current = isMuted;
   }, [isMuted]);
 
@@ -237,6 +245,20 @@ export function LiveInterview() {
     transcriptBottomRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [transcriptList, interimText]);
 
+  // ─── Silence Detection System (5-Second Auto-Submit Timer) ────────────────
+  const clearSilence = useCallback(() => {
+    if (silenceTimerRef.current) {
+      clearTimeout(silenceTimerRef.current);
+      silenceTimerRef.current = null;
+    }
+    if (countdownIntervalRef.current) {
+      clearInterval(countdownIntervalRef.current);
+      countdownIntervalRef.current = null;
+    }
+    setCountdownPercent(0);
+    setSecondsRemaining(0);
+  }, []);
+
   // ─── Real Web Audio API Analyser & MediaRecorder ──────────────────────────
   const startAnalyserAndRecorder = useCallback(async () => {
     try {
@@ -244,8 +266,8 @@ export function LiveInterview() {
         const stream = await navigator.mediaDevices.getUserMedia({
           audio: {
             echoCancellation: true,
-            noiseSuppression: true,
-            autoGainControl: true,
+            noiseSuppression: false,
+            autoGainControl: false,
           },
         });
         micStreamRef.current = stream;
@@ -253,7 +275,7 @@ export function LiveInterview() {
 
       const stream = micStreamRef.current;
 
-      // 1. Web Audio Context for visualizer
+      // 1. Web Audio Context for visualizer & responsive voice activity detection
       const AudioCtx = window.AudioContext || window.webkitAudioContext;
       if (AudioCtx) {
         if (!audioCtxRef.current || audioCtxRef.current.state === "closed") {
@@ -266,8 +288,8 @@ export function LiveInterview() {
 
         if (!analyserRef.current) {
           const analyser = ctx.createAnalyser();
-          analyser.fftSize = 64;
-          analyser.smoothingTimeConstant = 0.5;
+          analyser.fftSize = 256;
+          analyser.smoothingTimeConstant = 0.45;
           analyserRef.current = analyser;
 
           const source = ctx.createMediaStreamSource(stream);
@@ -276,14 +298,32 @@ export function LiveInterview() {
 
         const bufferLength = analyserRef.current.frequencyBinCount;
         const dataArray = new Uint8Array(bufferLength);
+        const timeDomainArray = new Uint8Array(analyserRef.current.fftSize);
 
         if (!animFrameRef.current) {
           const tick = () => {
             if (!analyserRef.current) return;
+            if (phaseRef.current !== PHASE.LISTENING && phaseRef.current !== PHASE.REVIEWING) {
+              setAudioLevels([0, 0, 0, 0, 0, 0, 0, 0, 0, 0]);
+              animFrameRef.current = requestAnimationFrame(tick);
+              return;
+            }
             analyserRef.current.getByteFrequencyData(dataArray);
+            analyserRef.current.getByteTimeDomainData(timeDomainArray);
 
+            // Compute time-domain RMS so normal speaking volume is detected immediately
+            let sumSquares = 0;
+            for (let i = 0; i < timeDomainArray.length; i++) {
+              const normalized = (timeDomainArray[i] - 128) / 128;
+              sumSquares += normalized * normalized;
+            }
+            const rms = Math.sqrt(sumSquares / timeDomainArray.length);
+            const voiceEnergy = Math.min(100, Math.round(rms * 350));
+
+            // Focus visualizer bars on voice-band frequencies (first ~40% of bins, ~0-8kHz)
             const barsCount = 10;
-            const bucketSize = Math.max(1, Math.floor(bufferLength / barsCount));
+            const voiceBins = Math.max(barsCount, Math.floor(bufferLength * 0.4));
+            const bucketSize = Math.max(1, Math.floor(voiceBins / barsCount));
             const newLevels = [];
 
             for (let i = 0; i < barsCount; i++) {
@@ -292,13 +332,33 @@ export function LiveInterview() {
                 sum += dataArray[i * bucketSize + j] || 0;
               }
               const avg = sum / bucketSize;
-              newLevels.push(Math.min(100, Math.round((avg / 255) * 100)));
+              newLevels.push(Math.min(100, Math.round((avg / 180) * 100)));
             }
 
             setAudioLevels(newLevels);
 
-            if (newLevels.some((lvl) => lvl > 5)) {
-              hasVocalizedRef.current = true;
+            // Require sustained voice energy (> 14 for ~12 frames / ~200ms) so ambient noise
+            // or mic clicks never trigger the 5-second auto-submit timer by themselves
+            if (voiceEnergy > 14) {
+              vocalFrameCountRef.current += 1;
+              if (vocalFrameCountRef.current >= 12) {
+                hasVocalizedRef.current = true;
+                lastVoiceTimeRef.current = Date.now();
+                if (silenceTimerRef.current) {
+                  clearSilence();
+                }
+                if (phaseRef.current === PHASE.LISTENING) {
+                  setPhase(PHASE.REVIEWING);
+                }
+              }
+            } else {
+              vocalFrameCountRef.current = 0;
+              if (hasVocalizedRef.current && voiceEnergy > 12) {
+                lastVoiceTimeRef.current = Date.now();
+                if (silenceTimerRef.current) {
+                  clearSilence();
+                }
+              }
             }
 
             animFrameRef.current = requestAnimationFrame(tick);
@@ -331,7 +391,7 @@ export function LiveInterview() {
     } catch (err) {
       console.warn("Microphone or MediaRecorder access error:", err);
     }
-  }, []);
+  }, [clearSilence, setPhase]);
 
   const stopAnalyserAndRecorder = useCallback(() => {
     if (animFrameRef.current) {
@@ -399,20 +459,6 @@ export function LiveInterview() {
     });
   };
 
-  // ─── Silence Detection System (5-Second Auto-Submit Timer) ────────────────
-  const clearSilence = useCallback(() => {
-    if (silenceTimerRef.current) {
-      clearTimeout(silenceTimerRef.current);
-      silenceTimerRef.current = null;
-    }
-    if (countdownIntervalRef.current) {
-      clearInterval(countdownIntervalRef.current);
-      countdownIntervalRef.current = null;
-    }
-    setCountdownPercent(0);
-    setSecondsRemaining(0);
-  }, []);
-
   const startSilenceTimer = useCallback(() => {
     clearSilence();
     if (isTextModeRef.current) return;
@@ -467,8 +513,14 @@ export function LiveInterview() {
       return;
     }
 
-    // Stop any existing audio so multiple voices never play at once
+    // Disconnect mic & stop any existing audio so person cannot speak while AI speaks
+    clearSilence();
+    stopSTT();
     stopAllAudio();
+    audioChunksRef.current = [];
+    hasVocalizedRef.current = false;
+    vocalFrameCountRef.current = 0;
+    lastVoiceTimeRef.current = 0;
     lastSpokenRef.current = text;
     setPhase(PHASE.SPEAKING);
 
@@ -492,10 +544,13 @@ export function LiveInterview() {
       };
 
       audio.play().catch((err) => {
-        console.warn("Autoplay note:", err);
+        console.warn("Autoplay blocked or playback failed:", err);
         audioRef.current = null;
         _activeAudio = null;
         setPhase(PHASE.LISTENING);
+        if (err?.name === "NotAllowedError") {
+          toast("Click 'Repeat Question' to hear the interviewer.", { icon: "🔊" });
+        }
       });
     } catch (err) {
       console.warn("Sarvam audio setup error:", err);
@@ -526,6 +581,12 @@ export function LiveInterview() {
 
     // Start hardware audio capture & real decibel analyser
     startAnalyserAndRecorder();
+
+    // Do not tear down & restart SpeechRecognition if it is already actively listening
+    // (e.g. when phase transitions from LISTENING -> REVIEWING on first word)
+    if (isSTTActiveRef.current && recognitionRef.current) {
+      return;
+    }
 
     // Start browser SpeechRecognition for live on-screen instant typing feedback
     if (SpeechRecognition) {
@@ -566,6 +627,7 @@ export function LiveInterview() {
           if (currentInterim.trim()) {
             setInterimText(currentInterim);
             hasVocalizedRef.current = true;
+            lastVoiceTimeRef.current = Date.now();
             clearSilence();
             if (phaseRef.current !== PHASE.REVIEWING) {
               setPhase(PHASE.REVIEWING);
@@ -575,6 +637,7 @@ export function LiveInterview() {
           if (newFinal.trim()) {
             setInterimText("");
             hasVocalizedRef.current = true;
+            lastVoiceTimeRef.current = Date.now();
             setTextInput((prev) => {
               const trimmed = prev.trim();
               const addition = newFinal.trim();
@@ -583,8 +646,6 @@ export function LiveInterview() {
               return updated;
             });
             setPhase(PHASE.REVIEWING);
-            // Start 5-second silence auto-submit countdown
-            startSilenceTimer();
           }
         };
 
@@ -639,12 +700,30 @@ export function LiveInterview() {
     }
   }, [phase, isTextMode, isMuted, startSTT, stopSTT]);
 
-  // ─── Initialize Session (Strictly Once) ──────────────────────────────────
-  const sessionInitRef = useRef(false);
-
+  // Voice Activity Silence Watcher (auto-submits only after real sustained speech + pause)
   useEffect(() => {
-    if (sessionInitRef.current) return;
-    sessionInitRef.current = true;
+    if (phase !== PHASE.REVIEWING || isTextMode || isMuted) return;
+
+    const watcher = setInterval(() => {
+      const hasSpoken =
+        hasVocalizedRef.current ||
+        textInputRef.current.trim().length > 0 ||
+        interimTextRef.current.trim().length > 0;
+      if (
+        hasSpoken &&
+        lastVoiceTimeRef.current > 0 &&
+        !silenceTimerRef.current &&
+        Date.now() - lastVoiceTimeRef.current >= 1800
+      ) {
+        startSilenceTimer();
+      }
+    }, 300);
+
+    return () => clearInterval(watcher);
+  }, [phase, isTextMode, isMuted, startSilenceTimer]);
+
+  // ─── Initialize Session ──────────────────────────────────────────────────
+  useEffect(() => {
     let isMounted = true;
 
     async function init() {
@@ -693,20 +772,36 @@ export function LiveInterview() {
     };
   }, [sessionId]); // eslint-disable-line
 
+  // End session & show report if user presses browser Back button
+  useEffect(() => {
+    const onPopState = () => {
+      if (!isEndingRef.current && phaseRef.current !== PHASE.COMPLETED) {
+        isEndingRef.current = true;
+        clearSilence();
+        stopAllAudio();
+        stopSTT();
+        endInterviewSession(sessionId).catch(() => {});
+      }
+    };
+    window.addEventListener("popstate", onPopState);
+    return () => window.removeEventListener("popstate", onPopState);
+  }, [sessionId, clearSilence, stopSTT]);
+
   // ─── Submit Answer Handler (Powered by Sarvam AI Speech-to-Text) ─────────
   const handleSubmitAnswer = async () => {
     clearSilence();
     setPhase(PHASE.SUBMITTING);
 
-    let answer = textInputRef.current.trim();
+    let answer = textInputRef.current.trim() || interimTextRef.current.trim();
     setIsTranscribing(true);
 
     try {
       // 1. Safely extract audio blob BEFORE stopping hardware
-      const audioBlob = await extractRecordedAudioBlob();
+      const shouldTranscribeVoice = !isTextModeRef.current && hasVocalizedRef.current;
+      const audioBlob = shouldTranscribeVoice ? await extractRecordedAudioBlob() : null;
 
       // 2. Transcribe voice audio with Sarvam AI
-      if (audioBlob && audioBlob.size > 800) {
+      if (audioBlob && audioBlob.size > 1500) {
         try {
           const sttResult = await transcribeAudio(audioBlob, "candidate_voice.webm");
           if (sttResult && sttResult.transcript && sttResult.transcript.trim()) {
@@ -720,6 +815,9 @@ export function LiveInterview() {
           }
         } catch (sttErr) {
           console.warn("Server STT error, falling back to captured text:", sttErr);
+          if (!answer) {
+            toast.error(`Voice transcription failed: ${sttErr.message || "Check backend STT service"}`);
+          }
         }
       }
     } catch (e) {
@@ -731,6 +829,8 @@ export function LiveInterview() {
       stopAllAudio();
       audioChunksRef.current = [];
       hasVocalizedRef.current = false;
+      lastVoiceTimeRef.current = 0;
+      vocalFrameCountRef.current = 0;
     }
 
     if (!answer) {
@@ -758,6 +858,10 @@ export function LiveInterview() {
       });
 
       if (res.completed) {
+        isEndingRef.current = true;
+        clearSilence();
+        stopSTT();
+        stopAllAudio();
         setPhase(PHASE.COMPLETED);
         toast.success("Interview completed! Generating scorecard...");
         navigate(`/report/${sessionId}`, { state: { report: res.report } });
@@ -794,11 +898,31 @@ export function LiveInterview() {
     submitRef.current = handleSubmitAnswer;
   });
 
+  // Go Back -> End Interview & Show Result Output
+  const handleBackAndShowReport = async () => {
+    isEndingRef.current = true;
+    clearSilence();
+    stopSTT();
+    stopAllAudio();
+    setPhase(PHASE.SUBMITTING);
+    toast.loading("Ending interview & generating your report...", { id: "ending-session" });
+
+    try {
+      const res = await endInterviewSession(sessionId);
+      toast.dismiss("ending-session");
+      navigate(`/report/${sessionId}`, { state: { report: res.report }, replace: true });
+    } catch (_) {
+      toast.dismiss("ending-session");
+      navigate(`/report/${sessionId}`, { replace: true });
+    }
+  };
+
   // End Interview Early
   const handleEndEarly = async () => {
     if (!window.confirm("Are you sure you want to finish the interview now? A partial scorecard will be calculated.")) {
       return;
     }
+    isEndingRef.current = true;
     clearSilence();
     stopSTT();
     stopAllAudio();
@@ -821,8 +945,15 @@ export function LiveInterview() {
       {/* Top Header Bar */}
       <div className="flex items-center justify-between border-b border-[#262626] px-4 py-3 md:px-8 bg-[#0A0A0A]">
         <div className="flex items-center gap-3">
-          <Button asChild variant="ghost" size="icon" className="h-8 w-8 text-[#A1A1A1] hover:text-white">
-            <Link to="/"><ArrowLeft className="h-4 w-4" /></Link>
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={handleBackAndShowReport}
+            disabled={phase === PHASE.SUBMITTING}
+            title="End interview and view results"
+            className="h-8 w-8 text-[#A1A1A1] hover:text-white cursor-pointer"
+          >
+            <ArrowLeft className="h-4 w-4" />
           </Button>
           <div>
             <h1 className="text-sm font-bold text-white flex items-center gap-2">
@@ -963,16 +1094,19 @@ export function LiveInterview() {
               <textarea
                 rows={3}
                 value={textInput}
+                disabled={phase === PHASE.SPEAKING || phase === PHASE.SUBMITTING}
                 onChange={(e) => {
                   setTextInput(e.target.value);
                   clearSilence();
                 }}
                 placeholder={
-                  isCandidateStreaming
+                  phase === PHASE.SPEAKING
+                    ? "Sara is speaking... Please listen (microphone paused)"
+                    : isCandidateStreaming
                     ? "Speak into your microphone continuously... Sarvam AI will transcribe your full answer with high accuracy"
                     : "Type or speak your response..."
                 }
-                className="w-full rounded-lg border border-[#262626] bg-black p-3 text-xs text-white placeholder:text-zinc-600 focus:outline-none focus:border-[#FF6500] resize-none leading-relaxed"
+                className="w-full rounded-lg border border-[#262626] bg-black p-3 text-xs text-white placeholder:text-zinc-600 focus:outline-none focus:border-[#FF6500] resize-none leading-relaxed disabled:opacity-50 disabled:cursor-not-allowed"
               />
 
               {/* Real-time live streaming interim text preview */}
@@ -1027,12 +1161,10 @@ export function LiveInterview() {
                   <Button
                     variant="outline"
                     size="sm"
+                    disabled={phase === PHASE.SPEAKING || phase === PHASE.SUBMITTING}
                     onClick={() => {
-                      if (phase === PHASE.SPEAKING) {
-                        stopAllAudio();
-                        setPhase(PHASE.LISTENING);
-                      }
-                      startSTT();
+                      stopSTT();
+                      setTimeout(() => startSTT(), 150);
                     }}
                     className={`text-xs border-[#262626] cursor-pointer ${
                       isUserTalking
@@ -1041,15 +1173,15 @@ export function LiveInterview() {
                     }`}
                   >
                     <Mic className="h-3.5 w-3.5 mr-1" />
-                    <span>{isUserTalking ? "Recording Voice" : "Restart Mic"}</span>
+                    <span>{phase === PHASE.SPEAKING ? "Mic Paused" : isUserTalking ? "Recording Voice" : "Restart Mic"}</span>
                   </Button>
                 )}
               </div>
 
               <Button
                 onClick={handleSubmitAnswer}
-                disabled={phase === PHASE.SUBMITTING || isTranscribing}
-                className="bg-[#FF6500] hover:bg-orange-600 text-white font-semibold text-xs shadow-[0_0_15px_rgba(255,101,0,0.3)] cursor-pointer"
+                disabled={phase === PHASE.SPEAKING || phase === PHASE.SUBMITTING || isTranscribing}
+                className="bg-[#FF6500] hover:bg-orange-600 text-white font-semibold text-xs shadow-[0_0_15px_rgba(255,101,0,0.3)] cursor-pointer disabled:opacity-50"
               >
                 {isTranscribing ? (
                   <>

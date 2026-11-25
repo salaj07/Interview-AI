@@ -46,12 +46,13 @@ T = TypeVar("T", bound=BaseModel)
 
 
 AI_MODELS = [
-    # Primary Gemini model
-    ("gemini", "gemini-3.8-flash"),
-
-    # Groq fallback models
+    # Primary Groq models
     ("groq", "openai/gpt-oss-120b"),
     ("groq", "openai/gpt-oss-20b"),
+
+    # Gemini fallback models
+    ("gemini", "gemini-4-hydrogen"),
+    ("gemini", "gemini-3.8-flash"),
 ]
 
 

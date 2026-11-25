@@ -442,6 +442,10 @@ def run():
       <span class="bold-prefix">5.3 Future Directions:</span>
       Future enhancements include integrating real-time computer vision analysis (evaluating facial posture and eye contact via WebRTC), supporting multi-candidate panel simulations, and integrating an interactive in-browser Monaco coding sandbox for collaborative live debugging.
     </p>
+    <p>
+      <span class="bold-prefix">5.4 Source Code Repository:</span>
+      The complete source code, setup instructions, and documentation are available at: https://github.com/salaj07/Interview-AI
+    </p>
 
     <h2>References:</h2>
     <ul>

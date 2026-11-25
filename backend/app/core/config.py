@@ -26,11 +26,11 @@ ANTHROPIC_API_KEY = os.getenv("ANTHROPIC_API_KEY", "")
 DEEPSEEK_API_KEY = os.getenv("DEEPSEEK_API_KEY", "")
 SARVAM_API_KEY = os.getenv("SARVAM_API_KEY", "")
 
-# Default order: First Gemini, then fallback to Groq
-AI_PROVIDER = os.getenv("AI_PROVIDER", "gemini")
-AI_MODEL = os.getenv("AI_MODEL", "gemini-3.8-flash")
-AI_FALLBACK_PROVIDER = os.getenv("AI_FALLBACK_PROVIDER", "groq")
-AI_FALLBACK_MODEL = os.getenv("AI_FALLBACK_MODEL", "openai/gpt-oss-120b")
+# Default order: First Groq, then fallback to Gemini
+AI_PROVIDER = os.getenv("AI_PROVIDER", "groq")
+AI_MODEL = os.getenv("AI_MODEL", "openai/gpt-oss-120b")
+AI_FALLBACK_PROVIDER = os.getenv("AI_FALLBACK_PROVIDER", "gemini")
+AI_FALLBACK_MODEL = os.getenv("AI_FALLBACK_MODEL", "gemini-4-hydrogen")
 AI_REQUEST_TIMEOUT_SECONDS = float(os.getenv("AI_REQUEST_TIMEOUT_SECONDS", 45))
 AI_MAX_RETRIES = int(os.getenv("AI_MAX_RETRIES", 2))
 
