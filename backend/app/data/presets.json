@@ -1,0 +1,262 @@
+[
+  {
+    "id": "backend",
+    "title": "Senior Backend Engineer",
+    "category": "Backend",
+    "description": "Concurrency, microservices, databases, caching, and scalable system design.",
+    "duration_minutes": 45,
+    "level": "L5 / Senior Engineer",
+    "salary": "$140,000 - $180,000",
+    "topics": [
+      "API design",
+      "data modeling",
+      "caching",
+      "reliability",
+      "communication"
+    ],
+    "technologies": [
+      "Python",
+      "FastAPI",
+      "PostgreSQL",
+      "MongoDB",
+      "Redis",
+      "Docker",
+      "RabbitMQ"
+    ],
+    "overview": "Build resilient, distributed systems to support high-throughput services. Optimize backend flows, design scalable relational and NoSQL storage layers, and lead microservice migrations.",
+    "responsibilities": [
+      "Design, implement, and maintain microservice APIs using FastAPI/Python.",
+      "Build robust caching layers and message queuing pipelines for event-driven logic.",
+      "Refactor bottlenecked database queries and implement read-replicas/sharding.",
+      "Set up health-check systems and end-to-end trace logging."
+    ],
+    "focus_areas": [
+      "System scale and database performance",
+      "Concurrency and thread safety in Python/Go",
+      "Caching policies and data eviction strategies"
+    ]
+  },
+  {
+    "id": "frontend",
+    "title": "Frontend Architect",
+    "category": "Frontend",
+    "description": "Performance, state management, design systems, Web Vitals, and accessibility.",
+    "duration_minutes": 45,
+    "level": "L6 / Staff Architect",
+    "salary": "$160,000 - $210,000",
+    "topics": [
+      "frontend architecture",
+      "state management",
+      "performance",
+      "accessibility",
+      "collaboration"
+    ],
+    "technologies": [
+      "React",
+      "TypeScript",
+      "Next.js",
+      "Redux",
+      "Tailwind CSS",
+      "Vite",
+      "Jest"
+    ],
+    "overview": "Lead the design, scaffolding, and performance tuning of modern frontend web applications. Build reusable component libraries, architect global state strategies, and ensure optimal web vitals.",
+    "responsibilities": [
+      "Architect micro-frontend and multi-page monorepo systems.",
+      "Optimize core web vitals, bundle size, caching, and asset pipelines.",
+      "Standardize design systems and style tokens for accessibility (WCAG 2.1 AA).",
+      "Standardize client-side telemetry, error logging, and user session monitoring."
+    ],
+    "focus_areas": [
+      "Component modularity and state lifecycle",
+      "Core Web Vitals and performance budgets",
+      "Responsive styles and cross-browser consistency"
+    ]
+  },
+  {
+    "id": "sysdesign",
+    "title": "System Design (L5)",
+    "category": "System Design",
+    "description": "End-to-end architecture for production distributed systems under high scale.",
+    "duration_minutes": 60,
+    "level": "L5 / Senior Architect",
+    "salary": "$150,000 - $190,000",
+    "topics": [
+      "requirements",
+      "data model",
+      "scaling",
+      "tradeoffs",
+      "risk handling"
+    ],
+    "technologies": [
+      "NGINX",
+      "HAProxy",
+      "gRPC",
+      "Cassandra",
+      "DynamoDB",
+      "Redis",
+      "Kafka",
+      "AWS"
+    ],
+    "overview": "Architect high-level distributed systems under extreme scale constraints. Establish data routing, high availability systems, failover mechanisms, and multi-region deployment blueprints.",
+    "responsibilities": [
+      "Propose scalable architectural diagrams resolving latency bottlenecks.",
+      "Evaluate consistency trade-offs (CAP theorem) in distributed datastores.",
+      "Implement rate limiters, API gateways, load balancers, and CDN networks.",
+      "Architect failover topologies, write-ahead-logging, and split-brain resolution."
+    ],
+    "focus_areas": [
+      "System scalability, redundancy, and CAP tradeoffs",
+      "Data routing, hashing, and load balancing",
+      "Resilience policies (circuit breakers, retries)"
+    ]
+  },
+  {
+    "id": "devops",
+    "title": "DevOps Lead",
+    "category": "DevOps",
+    "description": "CI/CD pipelines, Kubernetes, cloud infrastructure, reliability, and incident response.",
+    "duration_minutes": 45,
+    "level": "L5 / Lead Engineer",
+    "salary": "$145,000 - $185,000",
+    "topics": [
+      "CI/CD",
+      "containers",
+      "cloud infrastructure",
+      "monitoring",
+      "incident response"
+    ],
+    "technologies": [
+      "Kubernetes",
+      "Docker",
+      "Terraform",
+      "GitHub Actions",
+      "Prometheus",
+      "Grafana",
+      "AWS"
+    ],
+    "overview": "Own the infrastructure, continuous integration pipelines, container configurations, and active monitoring frameworks of cloud-based platforms. Keep system availability >99.99%.",
+    "responsibilities": [
+      "Construct high-velocity CI/CD workflows and automated test runner integrations.",
+      "Manage and scale Kubernetes clusters, ingress controllers, and service meshes.",
+      "Automate infrastructure provisioning with declarative IaC state definitions.",
+      "Configure telemetry dashboards, alert rules, and log collection daemons."
+    ],
+    "focus_areas": [
+      "Zero-downtime rolling deployments",
+      "Infrastructure-as-Code best practices",
+      "High availability monitoring and observability"
+    ]
+  },
+  {
+    "id": "fullstack",
+    "title": "Full-Stack Generalist",
+    "category": "Fullstack",
+    "description": "Mixed technical scenarios across both frontend UI and backend services.",
+    "duration_minutes": 50,
+    "level": "L5 / Senior Engineer",
+    "salary": "$140,000 - $175,000",
+    "topics": [
+      "React architecture",
+      "state management",
+      "API design & middleware",
+      "database optimization",
+      "security"
+    ],
+    "technologies": [
+      "React",
+      "Node.js",
+      "Python",
+      "PostgreSQL",
+      "Redis",
+      "Tailwind CSS",
+      "REST/GraphQL"
+    ],
+    "overview": "Deliver full-stack web applications from rich UI components to high-performance database schema and backend API integration.",
+    "responsibilities": [
+      "Build fluid interactive interfaces in React with solid UX and clean architecture.",
+      "Develop well-typed, performant backend REST and GraphQL endpoints.",
+      "Design database schema and optimize queries for high user concurrency.",
+      "Implement secure authentication, session management, and authorization."
+    ],
+    "focus_areas": [
+      "End-to-end type safety and API contracts",
+      "State synchronization and caching",
+      "Full-stack authentication and security"
+    ]
+  },
+  {
+    "id": "mern",
+    "title": "MERN Stack Developer",
+    "category": "Fullstack",
+    "description": "MongoDB, Express.js, React, Node.js, and end-to-end fullstack integration.",
+    "duration_minutes": 45,
+    "level": "Mid to Senior Developer",
+    "salary": "$120,000 - $160,000",
+    "topics": [
+      "React components",
+      "Node/Express middleware",
+      "MongoDB Mongoose schemas",
+      "JWT authentication",
+      "performance optimization"
+    ],
+    "technologies": [
+      "MongoDB",
+      "Express.js",
+      "React",
+      "Node.js",
+      "Mongoose",
+      "JWT",
+      "Tailwind CSS"
+    ],
+    "overview": "Develop modern, scalable web applications utilizing the MERN stack with emphasis on modular component design and secure API gateways.",
+    "responsibilities": [
+      "Develop RESTful APIs with Node.js and Express.",
+      "Design and maintain MongoDB collections with indexing and validation.",
+      "Construct dynamic responsive user interfaces using React hooks and state.",
+      "Implement role-based access control and JWT token refresh workflows."
+    ],
+    "focus_areas": [
+      "MongoDB query optimization and aggregation pipelines",
+      "Express middleware error handling and input validation",
+      "React component lifecycle and hooks efficiency"
+    ]
+  },
+  {
+    "id": "apidesign",
+    "title": "API Design & Microservices",
+    "category": "Backend",
+    "description": "REST, gRPC, schema contracts, backward compatibility, versioning, and evolvability.",
+    "duration_minutes": 35,
+    "level": "L5 / Senior Engineer",
+    "salary": "$135,000 - $175,000",
+    "topics": [
+      "RESTful standards",
+      "schema validation",
+      "versioning strategies",
+      "rate limiting",
+      "idempotency"
+    ],
+    "technologies": [
+      "OpenAPI",
+      "gRPC",
+      "FastAPI",
+      "Redis",
+      "OAuth2",
+      "JSON Schema"
+    ],
+    "overview": "Design evolvable, secure, and developer-friendly API contracts that scale cleanly across multi-tenant services.",
+    "responsibilities": [
+      "Author rigorous API specifications and schemas.",
+      "Formulate versioning and deprecation policies.",
+      "Enforce distributed idempotency and distributed rate limits.",
+      "Guarantee resilient serialization and error status contracts."
+    ],
+    "focus_areas": [
+      "Idempotency keys and replay protection",
+      "Backward-compatible schema evolution",
+      "Fine-grained rate limiting and quota management"
+    ]
+  }
+]
+

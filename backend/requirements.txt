@@ -1,0 +1,14 @@
+fastapi>=0.100.0
+uvicorn>=0.22.0
+pydantic>=2.0.0
+python-dotenv>=1.0.0
+httpx>=0.24.0
+python-multipart>=0.0.6
+openai>=1.0.0
+groq>=0.4.0
+langchain>=0.1.0
+langchain-groq>=0.1.0
+langchain-openai>=0.1.0
+motor>=3.3.0
+pymupdf>=1.23.0
+

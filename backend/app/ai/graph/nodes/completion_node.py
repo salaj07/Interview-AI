@@ -1,0 +1,114 @@
+# Copyright 2026 Sharexpress Contributors
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+"""
+completion_node.py
+──────────────────
+Decides whether the interview is done and generates a human-like closing.
+The closing is context-aware — it reacts to the candidate's performance.
+"""
+from __future__ import annotations
+
+from app.ai.graph.state import InterviewState
+
+
+async def completion_node(state: InterviewState):
+    turns = state.get("turns", [])
+    substantive_turns = [t for t in turns if t.get("topic") != "self_introduction"]
+    turn_count = len(substantive_turns)
+
+    max_q = max(2, int(state.get("max_questions", 20)))
+    min_q = max(2, int(state.get("min_questions", 2)))
+    tree_nodes = state.get("tree_nodes", [])
+    
+    # ── Early Exit Rule: candidate unresponsive or consistently failing ────────
+    if turn_count >= min_q:
+        recent_evals = [t.get("evaluation", {}) for t in substantive_turns]
+        recent_scores = [float(e.get("score", 5.0)) for e in recent_evals if e]
+        if recent_scores and len(recent_scores) >= 2:
+            avg_recent = sum(recent_scores) / len(recent_scores)
+            if avg_recent < 3.0:
+                return _done(state, "early_exit_low_accuracy")
+
+    # ── Max questions reached (up to 20) ──────────────────────────────────────
+    if turn_count >= max_q:
+        return _done(state, "max_questions_reached")
+
+    # ── Decision Tree Coverage Check ──────────────────────────────────────────
+    unvisited_nodes = [
+        n for n in tree_nodes 
+        if n.get("status") in ("unvisited", "probing") and n.get("topic") != "self_introduction"
+    ]
+
+    if turn_count >= min_q and not unvisited_nodes:
+        return _done(state, "tree_coverage_complete")
+
+    return {
+        "completed": False,
+        "status": "active",
+        "completion_reason": "",
+        "closing_message": "",
+    }
+
+
+def _done(state: InterviewState, reason: str) -> dict:
+    return {
+        "completed": True,
+        "status": "completed",
+        "interview_phase": "completed",
+        "completion_reason": reason,
+        "closing_message": _closing_message(state, reason),
+    }
+
+
+def _closing_message(state: InterviewState, reason: str) -> str:
+    role = state.get("role") or "this role"
+    evaluations = state.get("evaluations", [])
+    avg_score = 0.0
+    if evaluations:
+        scores = [float(e.get("score", 0)) for e in evaluations]
+        avg_score = sum(scores) / len(scores)
+
+    behavior_flags = []
+    for e in evaluations:
+        behavior_flags.extend(e.get("behavior_flags") or [])
+    has_behavior_concerns = len(behavior_flags) > 0
+
+    # Human-like closing based on overall performance
+    if avg_score >= 8:
+        performance_line = "You demonstrated strong command across the topics we covered."
+    elif avg_score >= 6:
+        performance_line = "There were solid moments — a few areas to sharpen, but a respectable run."
+    elif avg_score >= 4:
+        performance_line = "Mixed signals overall. There's a clear foundation, but depth and precision need work."
+    else:
+        performance_line = "We covered the key areas. There's meaningful ground to cover before a live loop."
+
+    if has_behavior_concerns:
+        behavior_line = " I'd also encourage approaching interviews with more patience — it matters how you show up."
+    else:
+        behavior_line = ""
+
+    if reason == "max_questions_reached":
+        return (
+            f"That's all for the {role} session. "
+            f"{performance_line}{behavior_line} "
+            "Your full report is ready."
+        )
+
+    return (
+        f"We've covered everything I wanted to assess for the {role} role. "
+        f"{performance_line}{behavior_line} "
+        "Your report is ready."
+    )

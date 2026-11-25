@@ -1,0 +1,29 @@
+{
+  "name": "ai-interview-studio",
+  "private": true,
+  "version": "1.0.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview"
+  },
+  "dependencies": {
+    "@radix-ui/react-slot": "^1.5.0",
+    "class-variance-authority": "^0.7.1",
+    "clsx": "^2.1.1",
+    "lucide-react": "^0.575.0",
+    "react": "^19.2.0",
+    "react-dom": "^19.2.0",
+    "react-router-dom": "^6.28.0",
+    "recharts": "^2.15.4",
+    "sonner": "^2.0.8",
+    "tailwind-merge": "^3.5.0"
+  },
+  "devDependencies": {
+    "@tailwindcss/vite": "^4.2.1",
+    "@vitejs/plugin-react": "^5.0.4",
+    "tailwindcss": "^4.2.1",
+    "vite": "^7.0.0"
+  }
+}
